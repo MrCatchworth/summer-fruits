@@ -1,14 +1,51 @@
 package com.megajohnny.a2a;
 
-public class Game {
-    public enum State {WAITING_FOR_PLAYERS, SUBMISSION, JUDGING, END};
+public class GameLogic {
+    public enum State {WAITING_FOR_PLAYERS, SUBMISSION, JUDGING, END;
+                       public static final String[] = {"Waiting for players", "Waiting for submissions", "Waiting for judge", "Post-game"};
+                      };
     
     public static final int handSize = 7;
     public static final int minPlayersToPlay = 3;
+    public static final int scoreLimit = 12;
     
     private ArrayList<Player> players;
     private State curState;
     private Player curJudge;
+    
+    private void newRound() {
+        //draw green card
+        //assign new judge
+        //deal red cards until all players have 7
+        curState = SUBMISSION;
+    }
+    
+    public synchronized void judgeSelects(Player sendingPlayer, int id) {
+        if (curState != JUDGING || curJudge != sendingPlayer) {
+            //erroneous message; ignore?
+            return;
+        }
+        
+        //convert 'id' to card object
+        if (!c.isValidSubmission()) {
+            //tell judge sorry, but that player left
+            return;
+        }
+        
+        //award green card to owner of selection
+        if (winner.score() >= scoreLimit) {
+            //end the game
+        } else {
+            newRound();
+        }
+    }
+    
+    public synchronized void playerSubmits(Player sendingPlayer, int id) {
+        if (curState != SUBMISSION || curJudge == sendingPlayer || sendingPlayer.hasSubmitted()) {
+            //erroneous message; ignore?
+            return;
+        }
+        
     
     public synchronized void playerJoins(Player joiner) {
         players.add(joiner);
@@ -57,8 +94,7 @@ public class Game {
                     //deal 1 red card to each remaining player
                     //assign new judge
                 } else {
-                    //discard leaver's submission
-                    //send a message to the judge saying this
+                    //mark leaver's submission as invalid
                 }
                 //shuffle player's hand into red deck
                 if (players.size() < minPlayersToPlay) {

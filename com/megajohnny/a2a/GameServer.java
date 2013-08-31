@@ -6,17 +6,19 @@ import java.io.IOException;
 import java.util.ArrayList;
 
 public class GameServer {
-    private static Card[] readDeck(String filename, CardColour colour) throws IOException, IndexOutOfBoundsException{
+    private static Card[] readDeck(String filename, CardColour colour) throws IOException, IndexOutOfBoundsException {
         BufferedReader deckFile = new BufferedReader(new FileReader(filename));
         ArrayList<Card> cardList = new ArrayList<Card>();
             
         String line;
         while ((line = deckFile.readLine()) != null) {
             if (line.isEmpty() || line.charAt(0) == '#') continue;
-            int colonpos = line.indexOf(':');
-            String name = line.substring(0, colonpos);
-            String desc = line.substring(colonpos+1, line.length());
-            cardList.add(new Card(name, desc, colour));
+            Card c = Card.parse(line);
+            if (c == null) {
+                throw new IndexOutOfBoundsException();
+            } else {
+                cardList.add(c);
+            }
         }
         
         deckFile.close();
