@@ -1,25 +1,16 @@
 package com.megajohnny.a2a;
 
 public class Player {
-    private String name;
+    private final String name;
     private int score;
-    private CardCollection hand;
-    
-    private PlayerNetwork network;
+    private Card submission;
+    private final CardCollection hand;
     
     public Player(String name, PlayerNetwork network) {
         this.name = name;
         this.network = network;
         score = 0;
+        submission = null;
         hand = new CardCollection();
     }
-    
-    public void sendMessage(String s) {
-        network.sendMessage(s);
-    }
-    
-    public void deal(Card c) {
-        network.cardDealt();
-    }
-    
 }

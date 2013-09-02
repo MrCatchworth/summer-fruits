@@ -18,4 +18,8 @@ public class CardCollection extends ArrayList<Card> {
         int insid = (int)(Math.random()*(size()));
         add(insid, c);
     }
+    
+    public Card draw() {
+        return remove(size()-1);
+    }
 }
