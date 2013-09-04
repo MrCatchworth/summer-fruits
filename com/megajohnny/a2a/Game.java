@@ -6,10 +6,10 @@ public class Game {
     
     public static Game currentGame;
     
-    public Game() {
+    public Game(Card[] redDeck, Card[] greenDeck) {
         currentGame = this;
         network = new GameNetwork(this);
-        logic = new GameLogic(this);
+        logic = new GameLogic(this, redDeck, greenDeck);
     }
     
     public GameNetwork getNetwork() {

@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.net.ServerSocket;
 
 public class GameServer {
     private static Card[] readDeck(String filename, CardColour colour) throws IOException, IndexOutOfBoundsException {
@@ -13,7 +14,7 @@ public class GameServer {
         String line;
         while ((line = deckFile.readLine()) != null) {
             if (line.isEmpty() || line.charAt(0) == '#') continue;
-            Card c = Card.parse(line);
+            Card c = Card.parse(line, colour);
             if (c == null) {
                 throw new IndexOutOfBoundsException();
             } else {
@@ -44,9 +45,11 @@ public class GameServer {
         }
         catch (IOException e) {
             System.out.println("Problem reading the green deck file");
+            return;
         }
         catch (IndexOutOfBoundsException e) {
             System.out.println("Malformed green deck file");
+            return;
         }
         
         try {
@@ -59,9 +62,24 @@ public class GameServer {
         }
         catch (IOException e) {
             System.out.println("Problem reading the red deck file");
+            return;
         }
         catch (IndexOutOfBoundsException e) {
             System.out.println("Malformed red deck file");
+            return;
+        }
+        
+        //make the game object and start listening for connections
+        Game game = new Game(redDeck, greenDeck);
+        try {
+            ServerSocket listener = new ServerSocket(4746);
+            while (true) {
+                game.getNetwork().newConnection(listener.accept());
+            }
+        }
+        catch(IOException e) {
+            System.out.println("Oh Shit!");
+            return;
         }
     }
 }

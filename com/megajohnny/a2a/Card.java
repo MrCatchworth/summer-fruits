@@ -14,12 +14,12 @@ public class Card {
         }
     }
     
-    String final name;
-    String final desc;
-    CardColour final colour;
+    private final String name;
+    private final String desc;
+    private final CardColour colour;
     
-    boolean validSubmission;
-    Player submitter;
+    private boolean validSubmission;
+    private Player submitter;
     
     public Card(String name, String desc, CardColour colour) {
         this.name = name;
@@ -47,8 +47,11 @@ public class Card {
         submitter = null;
         validSubmission = false;
     }
-    public void isValidSubmission() {
+    public boolean isValidSubmission() {
         return validSubmission;
+    }
+    public Player getSubmitter() {
+        return submitter;
     }
     
     public String toString() {

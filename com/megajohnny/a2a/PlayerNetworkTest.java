@@ -20,9 +20,12 @@ public class PlayerNetworkTest {
             System.out.println("Exception");
             e.printStackTrace();
         }
+        /*
         finally {
+            System.out.println("Finally...");
             pn.disconnect();
         }
+        */
         
         System.out.println("Goodbye");
     }
