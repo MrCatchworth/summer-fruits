@@ -20,8 +20,9 @@ public class GameNetwork {
             pn = new PlayerNetwork(endpoint);
         }
         catch (IOException e) {
-            try {endpoint.close();} catch(IOException e2){}
+            try {endpoint.close(); return;} catch(IOException e2){}
         }
+        System.out.println("A player has connected");
         connections.add(pn);
         pn.start();
     }

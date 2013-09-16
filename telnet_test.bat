@@ -1,0 +1,1 @@
+for /l %%i in (1, 1, 3) do start telnet localhost 4746

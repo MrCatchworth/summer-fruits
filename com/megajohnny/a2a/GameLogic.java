@@ -24,6 +24,7 @@ public class GameLogic {
     private GameNetwork network;
     private Game game;
     private int nextJudgeIndex;
+    private int curJudgeIndex;
     
     public GameLogic (Game g, Card[] rdContents, Card[] gdContents) {
         game = g;
@@ -43,6 +44,11 @@ public class GameLogic {
         curState = State.WAITING_FOR_PLAYERS;
         curJudge = null;
         nextJudgeIndex = 0;
+        curJudgeIndex = 0;
+    }
+    
+    public List<Player> getPlayers() {
+        return players;
     }
     
     private void fillPlayersHand(Player p) {
@@ -52,23 +58,95 @@ public class GameLogic {
         }
     }
     
-    private void newRound() {
+    private void fillAllPlayersHands() {
+        boolean nothingDone;
+        do {
+            nothingDone = true;
+            for (Player p : players) {
+                if (p.getHandSize() < handSize) {
+                    p.deal(redDeck.draw());
+                    nothingDone = false;
+                }
+            }
+        } while (!nothingDone);
+    }
+    
+    
+    private void newRound(boolean reset) {
+        if (reset) {
+            //shuffle submissions into red deck
+            redDeck.addAll(submissions);
+            submissions.clear();
+            redDeck.shuffle();
+        }
         //draw green card
-        curSubject = greenDeck.draw();
+        if (!reset) curSubject = greenDeck.draw();
         //assign new judge
-        curJudge = players.get(nextJudgeIndex);
-        nextJudgeIndex = (nextJudgeIndex+1) % players.size();
-        
-        for (Player p : players) {
-            p.getNetwork().send("msg", "A new round is starting!");
-            p.getNetwork().send("judge", curJudge.getName());
-            
-            p.getNetwork().send("msg", "The new subject is "+curSubject.getName());
-            p.getNetwork().send("msg", "Players, submit your cards!");
+        if (reset) {
+            curJudgeIndex = curJudgeIndex % players.size();
+            curJudge = players.get(curJudgeIndex);
+            nextJudgeIndex = (curJudgeIndex + 1) % players.size();
+        } else {
+            curJudge = players.get(nextJudgeIndex);
+            curJudgeIndex = nextJudgeIndex;
+            nextJudgeIndex = (nextJudgeIndex+1) % players.size();
         }
         
-        //deal red cards until all players have 7
-        curState = State.SUBMISSION;
+        //fill hands
+        fillAllPlayersHands();
+        System.out.println("Finished dealing");
+        
+        for (Player p : players) {
+            p.send("msg", "A new round is starting");
+            p.send("judge", String.valueOf(curJudge.getId()));
+            p.send("subject", curSubject.toString());
+        }
+        
+        changeState(State.SUBMISSION);
+        
+        for (Player p : players) {
+            p.clearSubmission();
+        }
+        
+        System.out.println("The judge is "+curJudge.getName());
+    }
+    
+    private void sendState(Player joiner) {
+        for (Player p : players) {
+            sendPlayer(p, joiner, false);
+        }
+        joiner.send("state", String.valueOf(curState.ordinal()));
+        
+        if (curState == State.WAITING_FOR_PLAYERS || curState == State.END) return;
+        
+        joiner.send("judge", String.valueOf(curJudge.getId()));
+        joiner.send("subject", String.valueOf(curSubject.toString()));
+        
+        if (curState == State.JUDGING) {
+            for (Card c : submissions) {
+                joiner.send("submission", c.toString());
+            }
+        } else {
+            joiner.send("submcount", String.valueOf(submissions.size()));
+        }
+    }
+    
+    private void checkJudging() {
+        System.out.print("Checking judging... ");
+        for (Player p : players) {
+            if (!p.hasSubmitted() && p != curJudge) {
+                System.out.println("Not yet, "+p.getName()+" still needs to submit");
+                return;
+            }
+        }
+        System.out.println("Yes!");
+        
+        changeState(State.JUDGING);
+        for (Player p : players) {
+            for (Card c : submissions) {
+                p.send("submission", c.toString());
+            }
+        }
     }
     
     public synchronized void judgeSelects(Player sendingPlayer, int id) {
@@ -77,49 +155,69 @@ public class GameLogic {
             return;
         }
         
+        if (id < 0 || id >= submissions.size()) return;
         Card c = submissions.get(id);
         
         if (!c.isValidSubmission()) {
             //tell judge sorry, but that player left
+            curJudge.getNetwork().send("msg", "Sorry, the submitter of that card left, please choose another");
             return;
         }
         
         //award green card to owner of selection
         Player winner = c.getSubmitter();
         winner.setScore(winner.getScore()+1);
+        
+        //discard submissions (they need to be shuffled back in if the game ends)
+        redDiscards.addAll(submissions);
+        submissions.clear();
+        
+        //discard subject
+        greenDiscards.add(curSubject);
+        
         if (winner.getScore() >= scoreLimit) {
             //end the game
         } else {
-            newRound();
+            newRound(false);
         }
     }
     
     public synchronized void playerSubmits(Player sendingPlayer, Card submission) {
-        if (curState != State.SUBMISSION || curJudge == sendingPlayer || sendingPlayer.hasSubmitted()) {
+        System.out.println(sendingPlayer.getName()+" trying to submit "+submission.getName());
+        
+        if (curState != State.SUBMISSION || curJudge == sendingPlayer) {
             //erroneous message; ignore?
             return;
         }
+        submissions.add(submission);
         
+        for (Player p : Game.currentGame.getLogic().getPlayers()) {
+            if (p != sendingPlayer) p.send("submitother", String.valueOf(sendingPlayer.getId()));
+        }
+        
+        //if all players have submitted start the judging
+        checkJudging();
+        
+        System.out.println("I love big dicks");
     }
     
     public synchronized void playerJoins(Player joiner) {
         for (Player p : players) {
-            p.getNetwork().send("msg", joiner.getName()+" has joined the game");
+            sendPlayer(joiner, p, true);
         }
         
-        players.add(joiner);
+        sendState(joiner);
         
-        joiner.getNetwork().send("msg", "Welcome to the game, "+joiner.getName());
-        joiner.getNetwork().send("msg", "The game is currently: "+State.stateNames[curState.ordinal()]);
+        players.add(joiner);
         
         //send current game state to joining player
         switch (curState) {
             case WAITING_FOR_PLAYERS:
                 if (players.size() >= minPlayersToPlay) {
                     for (Player p : players) {
-                        p.getNetwork().send("msg", "We have enough players to play!");
-                        newRound();
+                        p.send("msg", "We have enough players to play!");
                     }
+                    newRound(false);
                 }
             break;
             case SUBMISSION:
@@ -134,9 +232,13 @@ public class GameLogic {
         }
     }
     
-    public synchronized void playerLeaves(Player leaver) {
+    public synchronized void playerLeaves(Player leaver, DisconnectReason reason) {
         players.remove(leaver);
+        
         //send message to remaining players
+        for (Player p : players) {
+            p.send("leave", String.valueOf(leaver.getId()), String.valueOf(reason.ordinal()));
+        }
         
         switch(curState) {
             case WAITING_FOR_PLAYERS:
@@ -146,24 +248,39 @@ public class GameLogic {
             case SUBMISSION:
                 if (curJudge == leaver) {
                     //assign new judge
+                    curJudgeIndex = curJudgeIndex % players.size();
+                    curJudge = players.get(curJudgeIndex);
+                    nextJudgeIndex = (curJudgeIndex + 1) % players.size();
+                    for (Player p : players) {
+                        p.send("judge", String.valueOf(curJudge.getId()));
+                    }
                 }
                 //shuffle leaver's hand into red deck
+                redDeck.addAll(leaver.getHand());
+                leaver.getHand().clear();
                 if (players.size() < minPlayersToPlay) {
-                    //end the game, go to WAITING_FOR_PLAYERS
+                    cancelGame();
+                } else {
+                    checkJudging();
                 }
             break;
             
             case JUDGING:
                 if (curJudge == leaver) {
-                    //shuffle submissions into red deck
-                    //deal 1 red card to each remaining player
-                    //assign new judge
+                    for (Player p : players) {
+                        p.send("msg", "The judge has left, restarting round");
+                    }
+                    newRound(true);
                 } else {
                     //mark leaver's submission as invalid
+                    leaver.getSubmission().clearSubmission();
                 }
                 //shuffle player's hand into red deck
+                redDeck.addAll(leaver.getHand());
+                leaver.getHand().clear();
+                
                 if (players.size() < minPlayersToPlay) {
-                    //end the game, go to WAITING_FOR_PLAYERS
+                    cancelGame();
                 }
             break;
             
@@ -172,10 +289,56 @@ public class GameLogic {
             break;
         }
     }
+    
+    private void cancelGame() {
+        System.out.println("The game is being cancelled");
+        //notify players
+        for (Player p : players) {
+            p.send("reset");
+        }
+        curState = State.WAITING_FOR_PLAYERS;
         
+        //now re-assemble the decks and shuffle
+        
+        //put hands back
+        for (Player p : players) {
+            redDeck.addAll(p.getHand());
+            p.getHand().clear();
+        }
+        //put discards back
+        redDeck.addAll(redDiscards);
+        greenDeck.addAll(greenDiscards);
+        redDiscards.clear();
+        greenDiscards.clear();
+        //put subject back
+        greenDeck.add(curSubject);
+        curSubject = null;
+        //put submissions back
+        for (Card c : submissions) {
+            c.clearSubmission();
+        }
+        redDeck.addAll(submissions);
+        submissions.clear();
+        
+        //shuffle re-assembled decks
+        redDeck.shuffle();
+        greenDeck.shuffle();
+    }
+    
+    private void changeState(State newState) {
+        curState = newState;
+        for (Player p : players) {
+            p.send("state", String.valueOf(curState.ordinal()));
+        }
+    }
+    
     public synchronized void playerChats(Player chatter, String msg) {
         for (Player p : players) {
-            if (p != chatter) p.getNetwork().send("chat", new String[] {chatter.getName(), msg});
+            if (p != chatter) p.send("chat", String.valueOf(chatter.getId()), msg);
         }
+    }
+    
+    private void sendPlayer(Player p, Player recipient, boolean isJoiner) {
+        recipient.send("player", String.valueOf(p.getId()), p.getName(), String.valueOf(p.getScore()), String.valueOf(p.getHandSize()), String.valueOf(p.hasSubmitted()), String.valueOf(isJoiner));
     }
 }
