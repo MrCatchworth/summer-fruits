@@ -78,7 +78,7 @@ public class GameServer {
             }
         }
         catch(IOException e) {
-            System.out.println("Oh Shit!");
+            System.out.println("Oh Bother!");
             return;
         }
     }

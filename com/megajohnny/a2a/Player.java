@@ -104,7 +104,7 @@ public class Player {
         registered = false;
         hand = new CardCollection();
         id = nextId++;
-        name = "noname (id:"+id")";
+        name = "noname (id:"+id+")";
     }
     
     public void processMessage(String cmd, String[] args) {

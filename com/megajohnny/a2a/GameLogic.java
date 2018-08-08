@@ -197,8 +197,6 @@ public class GameLogic {
         
         //if all players have submitted start the judging
         checkJudging();
-        
-        System.out.println("I love big dicks");
     }
     
     public synchronized void playerJoins(Player joiner) {
